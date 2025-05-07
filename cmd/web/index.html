@@ -1,0 +1,181 @@
+<!-- 
+
+This HTML file implements a simple breakout game interface using a canvas element. 
+It dynamically adjusts the canvas size to fit the browser window and communicates 
+with a backend server to fetch the game state. The game state is then rendered on 
+the canvas, including the paddle, ball, bricks, and score.
+
+Key Features:
+1. **Canvas Setup**:
+  - The canvas element dynamically resizes to match the browser window dimensions.
+  - Scrolling is disabled to ensure a seamless gaming experience.
+
+2. **Keyboard Input Handling**:
+  - Listens for `ArrowRight` and `ArrowLeft` key presses to control the paddle movement.
+  - Tracks the state of these keys in a `keys` object.
+
+3. **Game State Fetching**:
+  - Sends the current key states to a backend server at `http://localhost:8080/game-state` using a POST request.
+  - Receives the game state as a JSON response, which includes details about the paddle, ball, bricks, and score.
+
+4. **Game Rendering**:
+  - Clears the canvas and redraws the game elements based on the fetched game state.
+  - Scales and centers the game area to fit the canvas dimensions.
+  - Renders the paddle, ball, and bricks with appropriate scaling and positioning.
+  - Displays the current score, level, and remaining lives.
+
+5. **Game Loop**:
+  - Continuously fetches the game state and updates the canvas using `requestAnimationFrame` for smooth rendering.
+
+Error Handling:
+- If the game state cannot be fetched, an error message is displayed on the canvas.
+
+Dependencies:
+- Requires a backend server running at `http://localhost:8080` to provide the game state.
+
+Usage:
+- Open this file in a browser to start the game.
+- Use the left and right arrow keys to control the paddle.
+-->
+<body style="background-color: lightgray; padding: 0; margin: 0;">
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    console.log('canvas.width', canvas.width);
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+    // make sure that there is no scrolling
+    document.body.style.overflow = 'hidden';
+
+    // check if one of arrow keys right or left is pressed
+    keys = {};
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight') {
+        keys.right = true;
+      } else if (event.key === 'ArrowLeft') {
+        keys.left = true;
+      }
+    });
+    window.addEventListener('keyup', (event) => {
+      if (event.key === 'ArrowRight') {
+        keys.right = false;
+      } else if (event.key === 'ArrowLeft') {
+        keys.left = false;
+      }
+    });
+
+  </script>
+  <script>
+    // const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    async function fetchGameState() {
+      try {
+        const response = await fetch('http://localhost:8080/game-state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(keys),
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch game state');
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching game state:', error);
+        return null;
+      }
+    }
+
+    function drawGameState(state) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!state) {
+        ctx.fillStyle = 'red';
+        ctx.font = '20px Arial';
+        ctx.fillText('Error loading game state', canvas.width / 2 - 100, canvas.height / 2);
+        return;
+      }
+      // calculate scaling factor to fit biggest picture into canvas size 
+      // when factor 1 is size received in state.Width and state.Height
+      const scaleX = canvas.width / state.Width;
+      const scaleY = canvas.height / state.Height;
+      const scale = Math.min(scaleX, scaleY);
+      // calculate offset to center the game in the canvas
+      const offsetX = (canvas.width - state.Width * scale) / 2;
+      const offsetY = (canvas.height - state.Height * scale) / 2;
+
+      // draw a play area 
+      ctx.fillStyle = 'black';
+      ctx.fillRect(offsetX, offsetY, state.Width * scale, state.Height * scale);
+
+      // draw paddle
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(state.PaddleX * scale + offsetX, (state.Height - state.PaddleHeight) * scale + offsetY, state.PaddleWidth * scale, state.PaddleHeight * scale);
+
+      // Draw ball
+      ctx.beginPath();
+      ctx.arc(state.BallX * scale + offsetX, state.BallY * scale + offsetY, state.BallRadius * scale, 0, Math.PI * 2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+      ctx.closePath();
+
+      // Draw bricks
+      // check if Bricks is not null
+      if (state.Bricks!=null) {
+        for (let i = 0; i < state.Bricks.length; i++) {
+          const brick = state.Bricks[i];
+          ctx.fillStyle = brick.Color;
+          ctx.fillRect(brick.X * scale + offsetX, brick.Y * scale + offsetY, brick.Width * scale, brick.Height * scale);
+          // draw single pixel size border around brick in dark gray
+          ctx.strokeStyle = 'darkgray';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(brick.X * scale + offsetX, brick.Y * scale + offsetY, brick.Width * scale, brick.Height * scale);
+        }
+      }
+
+      // Draw score
+      ctx.fillStyle = 'white';
+      ctx.font = '20px Arial';
+      ctx.fillText('Lives: ' + (5-state.Live+1)+' Level: ' + state.Level+' Score: ' + state.Score, 10+offsetX, 20+offsetY);
+    }
+
+    async function gameLoop() {
+      const gameState = await fetchGameState();
+      // if gameState.Live == 6 then game is over
+      if (gameState && gameState.Live == 6) {
+        ctx.fillStyle = 'red';
+        ctx.font = '40px Arial';
+        ctx.fillText('Game Over', canvas.width / 2 - 100, canvas.height / 2);
+        ctx.fillStyle = 'red';
+        ctx.font = '40px Arial';
+        ctx.fillText('Game Over', canvas.width / 2 - 100, canvas.height / 2);
+        ctx.font = '20px Arial';
+        ctx.fillText('New game will start in 10 seconds', canvas.width / 2 - 100, canvas.height / 2 + 50);
+        // sleep 10s
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        fetch('http://localhost:8080/reset', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+      }
+
+      drawGameState(gameState);
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+
+</html>
