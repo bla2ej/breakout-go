@@ -55,6 +55,9 @@ func main() {
 		// replace within data file string 8080 with port
 		s := string(indexHTML)
 		s = strings.ReplaceAll(s, "8080", port)
+		if !humanPlayer {
+			s = strings.ReplaceAll(s, "humanplay=1", "humanplay=0")
+		}
 		data := []byte(s)
 
 		w.Header().Set("Content-Type", "text/html")
@@ -139,7 +142,11 @@ func main() {
 		state := game.GetState()
 		aiState.State = BreakoutState2Bitmap(&state)
 		aiState.Action = action
-		aiState.Reward = float64(state.Score) - float64(score) // change of the score in this frame
+		if state.Score > score {
+			aiState.Reward = 1.0
+		} else {
+			aiState.Reward = 0.0
+		}
 		aiState.Done = state.Done
 		aiState.Lives = 5 - state.Live + 1
 		w.Header().Set("Content-Type", "application/json")

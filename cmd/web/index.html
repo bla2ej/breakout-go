@@ -150,7 +150,8 @@ Usage:
     async function gameLoop() {
       const gameState = await fetchGameState();
       // if gameState.Live == 6 then game is over
-      if (gameState && gameState.Live == 6) {
+      humanplay=1  // that will be overwritten by webserver if it is not human player
+      if (gameState && humanplay == 1 && gameState.Live == 6) {
         ctx.fillStyle = 'red';
         ctx.font = '40px Arial';
         ctx.fillText('Game Over', canvas.width / 2 - 100, canvas.height / 2);
